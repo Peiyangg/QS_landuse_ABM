@@ -7,6 +7,7 @@ globals [
   development-map
   road-map
   population
+  originally-agriculture
 
   develop-threshold
   build-threshold
@@ -16,6 +17,7 @@ globals [
   smoothness
 
   total-value
+  max-attraction
 
 ]
 
@@ -46,6 +48,8 @@ patches-own [
   attraction
   is-new-development
 
+  needs-attraction-update
+
 ]
 
 ; Setup the simulation environment
@@ -54,13 +58,13 @@ patches-own [
 
 to load-data
 
-  gis:load-coordinate-system (word "town.prj");这里一定是投影数据
+  gis:load-coordinate-system (word "data/town.prj");project data
 
-  set boundary-map gis:load-dataset "town.shp"
-  set agriculture-map gis:load-dataset "1.2.shp"
-  set eco_protected-map gis:load-dataset "eco_protected.shp"
-  set development-map gis:load-dataset "development.shp"
-  set road-map gis:load-dataset "road.shp"
+  set boundary-map gis:load-dataset "data/town.shp"
+  set agriculture-map gis:load-dataset "data/1.2.shp"
+  set eco_protected-map gis:load-dataset "data/eco_protected.shp"
+  set development-map gis:load-dataset "data/development.shp"
+  set road-map gis:load-dataset "data/road.shp"
 
 end
 
@@ -163,7 +167,7 @@ to calculate-total-value
   ; Check if there are any patches with the color orange
   print "calculating total value"
   ask patches with [agri-yeild > 0] [
-    set total-value  agri-yeild + agri-landscape + agri-suit - distance-to-nearest-road * 100
+    set total-value  index_of_agri_value * agri-yeild + index_of_landscape_value * agri-landscape + agri-suit - distance-to-nearest-road * 100
   ]
 
 end
@@ -173,9 +177,9 @@ to setup-turtles
 
 
   let development-patches patches with [pcolor = black]
- create-seekers  200
+ create-seekers  1000
   [
-  set color sky
+  set color 45
     set shape "default"
     set patience-counter seeker-patience
     set size .75
@@ -193,60 +197,102 @@ to setup
 
   load-data
   build-world
-
   calculate-distances-to-roads
   calculate-attraction
   calculate-total-value
-
-
-
   setup-turtles
-
-
-
   set build-threshold floor (total-value / 2 )
 
+  ask patches with [pcolor = orange] [
+    set originally-agriculture true
+  ]
+
+  setup-plot
 
   reset-ticks
 end
 
+to setup-plot
+  set-current-plot "Developed Agricultural Land"
+  set-current-plot-pen "Occupied"
+  set-plot-pen-color blue
+end
 
+to update-plot
+  set-current-plot "Developed Agricultural Land"
+  let developed-agri count patches with [originally-agriculture and pcolor = black]  ; Adjust condition as needed
+  plot developed-agri
+end
 
 
 to go
 
-ask seekers
-  [
-  ifelse (want-to-build?)
-
-    [
-
-     set breed houses
-     set shape "house"
-     set color blue
-     set stay-counter wait-between-seeking
-    ]
-
-    [
-    if (patience-counter) > 0
-    [
-    turn-toward-attraction
-    fd 0.5
-    set patience-counter patience-counter - 1
-    set attraction attraction + 0.1
-    ]
+ask seekers [
+    ifelse (want-to-build?) [
+      build-house
+    ] [
+      if (patience-counter) > 0 [
+        move-seeker
+        set patience-counter patience-counter - 1
+      ]
     ]
   ]
 
+  update-plot
   tick
 
 end
 
-; Include additional procedures for agent behaviors here
+
+
+
+
+to move-seeker
+
+    let nearest-road min-one-of (patches with [pcolor = 125]) [distance myself]
+    let direction towards nearest-road
+    face nearest-road
+    rt random-float 180 - 10
+    fd 2  ; Move forward by 1 patch
+
+end
+
+to build-house
+  let current-patch patch-here
+  if [pcolor] of current-patch = orange and [total-value] of current-patch < 5000 [
+    set breed houses
+    set shape "house"
+    set color blue
+    set size 2
+    set stay-counter wait-between-seeking
+    ask current-patch [
+      if originally-agriculture [
+        set pcolor blue  ; Change color to blue for development
+      ]
+      set needs-attraction-update true
+    ]
+  ]
+end
+
+
+to increase-attraction [source-patch]
+  ;; Parameters for diffusion
+  let base-increase 10  ; Base increase in attraction
+
+  ;; Apply the base increase to the source patch
+  ask source-patch [
+    set attraction attraction + base-increase
+  ]
+
+  ;; Diffuse the attraction
+  ;; You can adjust the diffusion rate (0.1 in this example) as needed
+  diffuse attraction 0.1
+end
+
 
 to-report want-to-build?
   let current-patch patch-here
-  report ([total-value] of current-patch >= build-threshold) or patience-counter = 0
+  report ([pcolor] of current-patch = orange) and ([total-value] of current-patch < 3000) or (patience-counter = 0)
 end
 
 to turn-toward-attraction
@@ -265,8 +311,6 @@ ifelse (myright > ahead) and (myright > myleft)
    [lt random seeker-search-angle]
 ]
 end
-
-
 @#$#@#$#@
 GRAPHICS-WINDOW
 262
@@ -313,11 +357,11 @@ NIL
 1
 
 PLOT
-680
-200
-880
-350
-perc_new_development
+13
+284
+213
+434
+Developed Agricultural Land
 NIL
 NIL
 0.0
@@ -328,25 +372,7 @@ true
 false
 "" ""
 PENS
-"default" 1.0 0 -16777216 true "" "plot count turtles"
-
-PLOT
-678
-35
-878
-185
-perc_occupied_agri
-NIL
-NIL
-0.0
-10.0
-0.0
-10.0
-true
-false
-"" ""
-PENS
-"default" 1.0 0 -16777216 true "" "plot count agri-area"
+"Occupied" 1.0 0 -7500403 true "" ""
 
 BUTTON
 13
@@ -373,9 +399,9 @@ SLIDER
 index_of_landscape_value
 index_of_landscape_value
 0
-100
-50.0
 1
+0.5
+0.1
 1
 NIL
 HORIZONTAL
@@ -389,56 +415,43 @@ index_of_agri_value
 index_of_agri_value
 0
 1
-0.5
+0.6
 0.1
 1
 NIL
 HORIZONTAL
 
 SLIDER
-14
-236
-262
-269
-degree_overcoming_difficulties
-degree_overcoming_difficulties
-0
-1
-0.5
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-17
-286
-225
-319
-tolerance_of_commuting
-tolerance_of_commuting
-0
-1
-0.3
-0.1
-1
-NIL
-HORIZONTAL
-
-SLIDER
-21
-354
-193
-387
+16
+233
+188
+266
 seeker-patience
 seeker-patience
 0
 100
-50.0
+100.0
 1
 1
 NIL
 HORIZONTAL
+
+BUTTON
+87
+80
+150
+113
+go
+go
+NIL
+1
+T
+OBSERVER
+NIL
+NIL
+NIL
+NIL
+1
 
 @#$#@#$#@
 ## WHAT IS IT?
