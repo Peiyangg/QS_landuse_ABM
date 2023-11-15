@@ -259,7 +259,7 @@ end
 
 to build-house
   let current-patch patch-here
-  if [pcolor] of current-patch = orange and [total-value] of current-patch < 5000 [
+  if [pcolor] of current-patch = orange and [total-value] of current-patch < comprehensive_value [
     set breed houses
     set shape "house"
     set color blue
@@ -393,9 +393,9 @@ NIL
 
 SLIDER
 14
-147
+167
 230
-180
+200
 index_of_landscape_value
 index_of_landscape_value
 0
@@ -408,9 +408,9 @@ HORIZONTAL
 
 SLIDER
 14
-190
+205
 200
-223
+238
 index_of_agri_value
 index_of_agri_value
 0
@@ -422,10 +422,10 @@ NIL
 HORIZONTAL
 
 SLIDER
-16
-233
-188
-266
+14
+246
+186
+279
 seeker-patience
 seeker-patience
 0
@@ -452,6 +452,21 @@ NIL
 NIL
 NIL
 1
+
+SLIDER
+14
+129
+201
+162
+comprehensive_value
+comprehensive_value
+2000
+7000
+4500.0
+100
+1
+NIL
+HORIZONTAL
 
 @#$#@#$#@
 ## WHAT IS IT?
